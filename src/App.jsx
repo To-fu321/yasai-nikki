@@ -347,7 +347,7 @@ function CalendarView({ plants, schedules, onSelectPlant, onAddSchedule, onDelet
   const today = new Date();
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [calMonth, setCalMonth] = useState(today.getMonth());
-  const [selectedDay, setSelectedDay] = useState(null);
+  const [selectedDay, setSelectedDay] = useState(today.getDate());
   const [calLightbox, setCalLightbox] = useState(null);
   // 予定追加・編集フォーム
   const [addingSched, setAddingSched] = useState(false);
@@ -757,49 +757,88 @@ function LogForm({ title, value, onChange, onSave, onCancel, saveLabel = "💾 �
 }
 
 // ── 植物カード（ダッシュボード用）────────────────────────────
-function PlantCard({ plant, onClick, finished = false }) {
+function PlantCard({ plant, onClick, onDelete, finished = false }) {
   const lastLog = plant.logs[plant.logs.length - 1];
   const totalHarvest = plant.logs.filter(l => l.type === "harvest").reduce((s, l) => s + (Number(l.harvest) || 0), 0);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
-    <div onClick={onClick}
-      style={{ background: finished ? "#f8f8f8" : "#fff", borderRadius: 18, boxShadow: "0 2px 12px #0001", cursor: "pointer", position: "relative", overflow: "hidden", opacity: finished ? 0.85 : 1 }}>
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: finished ? "#bdbdbd" : lastLog?.type === "harvest" ? "#ff9800" : "#66bb6a", borderRadius: "18px 18px 0 0", zIndex: 1 }} />
-      {finished && (
-        <div style={{ position: "absolute", top: 8, right: 10, fontSize: 10, background: "#e0e0e0", color: "#757575", borderRadius: 8, padding: "2px 7px", fontWeight: 600, zIndex: 1 }}>終了</div>
-      )}
-      <div style={{ padding: "18px 14px 14px" }}>
-        <div style={{ fontSize: 36, marginBottom: 4, textAlign: "center" }}>{plant.emoji}</div>
-        <div style={{ fontWeight: 700, fontSize: 15, color: finished ? "#777" : "#1b4f1b", textAlign: "center", marginBottom: 4 }}>{plant.name}</div>
-        <div style={{ fontSize: 11, color: "#888", textAlign: "center", marginBottom: 8 }}>
-          {finished
-            ? `${formatDate(plant.plantedDate)}〜${formatDate(plant.finishedDate)}（${growDays(plant)}日間）`
-            : `植付け ${formatDate(plant.plantedDate)}（${daysSince(plant.plantedDate)}日目）`}
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-around" }}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: finished ? "#bbb" : "#ff9800" }}>{totalHarvest}</div>
-            <div style={{ fontSize: 10, color: "#aaa" }}>収穫数</div>
-          </div>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: finished ? "#bbb" : "#2196f3" }}>{plant.logs.length}</div>
-            <div style={{ fontSize: 10, color: "#aaa" }}>記録数</div>
-          </div>
-        </div>
-        {!finished && lastLog && (
-          <div style={{ marginTop: 10, background: "#f5fbf5", borderRadius: 10, padding: "6px 8px", fontSize: 11, color: "#5a7a5a" }}>
-            <span style={{ color: typeColor[lastLog.type] }}>●</span> 最新: {typeLabel[lastLog.type]} {formatDate(lastLog.date)}
-          </div>
+    <div style={{ position: "relative" }}>
+      <div onClick={onClick}
+        style={{ background: finished ? "#f8f8f8" : "#fff", borderRadius: 18, boxShadow: "0 2px 12px #0001", cursor: "pointer", position: "relative", overflow: "hidden", opacity: finished ? 0.85 : 1 }}>
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: finished ? "#bdbdbd" : lastLog?.type === "harvest" ? "#ff9800" : "#66bb6a", borderRadius: "18px 18px 0 0", zIndex: 1 }} />
+        {finished && (
+          <div style={{ position: "absolute", top: 8, right: 10, fontSize: 10, background: "#e0e0e0", color: "#757575", borderRadius: 8, padding: "2px 7px", fontWeight: 600, zIndex: 1 }}>終了</div>
         )}
+        <div style={{ padding: "18px 14px 14px" }}>
+          <div style={{ fontSize: 36, marginBottom: 4, textAlign: "center" }}>{plant.emoji}</div>
+          <div style={{ fontWeight: 700, fontSize: 15, color: finished ? "#777" : "#1b4f1b", textAlign: "center", marginBottom: 4 }}>{plant.name}</div>
+          <div style={{ fontSize: 11, color: "#888", textAlign: "center", marginBottom: 8 }}>
+            {finished
+              ? `${formatDate(plant.plantedDate)}〜${formatDate(plant.finishedDate)}（${growDays(plant)}日間）`
+              : `植付け ${formatDate(plant.plantedDate)}（${daysSince(plant.plantedDate)}日目）`}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-around" }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: finished ? "#bbb" : "#ff9800" }}>{totalHarvest}</div>
+              <div style={{ fontSize: 10, color: "#aaa" }}>収穫数</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: finished ? "#bbb" : "#2196f3" }}>{plant.logs.length}</div>
+              <div style={{ fontSize: 10, color: "#aaa" }}>記録数</div>
+            </div>
+          </div>
+          {!finished && lastLog && (
+            <div style={{ marginTop: 10, background: "#f5fbf5", borderRadius: 10, padding: "6px 8px", fontSize: 11, color: "#5a7a5a" }}>
+              <span style={{ color: typeColor[lastLog.type] }}>●</span> 最新: {typeLabel[lastLog.type]} {formatDate(lastLog.date)}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* 削除ボタン */}
+      <button
+        onClick={e => { e.stopPropagation(); setConfirmDelete(true); }}
+        style={{ position: "absolute", top: 10, left: 10, width: 24, height: 24, borderRadius: "50%", background: "#ffebee", border: "1px solid #ffcdd2", color: "#e53935", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2, lineHeight: 1 }}>
+        ✕
+      </button>
+
+      {/* 削除確認オーバーレイ */}
+      {confirmDelete && (
+        <div onClick={e => e.stopPropagation()}
+          style={{ position: "absolute", inset: 0, background: "#fff5f5ee", borderRadius: 18, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, zIndex: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#c62828", textAlign: "center", padding: "0 10px" }}>「{plant.name}」を削除しますか？</div>
+          <div style={{ fontSize: 11, color: "#e57373", textAlign: "center" }}>記録もすべて消えます</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setConfirmDelete(false)}
+              style={{ padding: "7px 16px", borderRadius: 10, border: "1px solid #ddd", background: "#fff", fontSize: 12, cursor: "pointer" }}>
+              キャンセル
+            </button>
+            <button onClick={() => { setConfirmDelete(false); onDelete(plant.id); }}
+              style={{ padding: "7px 16px", borderRadius: 10, border: "none", background: "#e53935", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              削除する
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ── メインアプリ ──────────────────────────────────────────────
 export default function App() {
-  const [plants, setPlants] = useState(INITIAL_PLANTS);
-  const [schedules, setSchedules] = useState(INITIAL_SCHEDULES);
+  const [plants, setPlants] = useState(() => {
+    try {
+      const saved = localStorage.getItem("yasai_plants");
+      return saved ? JSON.parse(saved) : INITIAL_PLANTS;
+    } catch { return INITIAL_PLANTS; }
+  });
+  const [schedules, setSchedules] = useState(() => {
+    try {
+      const saved = localStorage.getItem("yasai_schedules");
+      return saved ? JSON.parse(saved) : INITIAL_SCHEDULES;
+    } catch { return INITIAL_SCHEDULES; }
+  });
   const [selectedId, setSelectedId] = useState(null);
   const [view, setView] = useState("dashboard");
   const [dashTab, setDashTab] = useState("active");
@@ -812,17 +851,36 @@ export default function App() {
   const [reviveConfirm, setReviveConfirm] = useState(false);
   const [lightbox, setLightbox] = useState(null); // { photos, index }
   const [showUpcoming, setShowUpcoming] = useState(false);
-  const [settings, setSettings] = useState({
-    notifyEnabled: false,
-    notifyOnDay: true,
-    notifyDayBefore: true,
-    notify3Before: false,
-    notifyTime: "08:00",
+  const [settings, setSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem("yasai_settings");
+      return saved ? JSON.parse(saved) : {
+        notifyEnabled: false,
+        notifyOnDay: true,
+        notifyDayBefore: true,
+        notify3Before: false,
+        notifyTime: "08:00",
+      };
+    } catch {
+      return {
+        notifyEnabled: false,
+        notifyOnDay: true,
+        notifyDayBefore: true,
+        notify3Before: false,
+        notifyTime: "08:00",
+      };
+    }
   });
 
   const selectedPlant = plants.find(p => p.id === selectedId);
   const activePlants = plants.filter(p => !p.finished);
   const finishedPlants = plants.filter(p => p.finished);
+
+  function deletePlant(id) {
+    setPlants(prev => prev.filter(p => p.id !== id));
+    // 関連する予定も削除
+    setSchedules(prev => prev.filter(s => s.plantId !== id));
+  }
 
   function addPlant() {
     if (!newPlant.name.trim()) return;
@@ -898,6 +956,26 @@ export default function App() {
 
   const totalHarvest = p => p.logs.filter(l => l.type === "harvest").reduce((s, l) => s + (Number(l.harvest) || 0), 0);
 
+  // 背景色をbody全体に適用
+  useEffect(() => {
+    document.body.style.background = "#f0f7f0";
+    document.body.style.margin = "0";
+    return () => { document.body.style.background = ""; };
+  }, []);
+
+  // データを localStorage に自動保存
+  useEffect(() => {
+    try { localStorage.setItem("yasai_plants", JSON.stringify(plants)); } catch {}
+  }, [plants]);
+
+  useEffect(() => {
+    try { localStorage.setItem("yasai_schedules", JSON.stringify(schedules)); } catch {}
+  }, [schedules]);
+
+  useEffect(() => {
+    try { localStorage.setItem("yasai_settings", JSON.stringify(settings)); } catch {}
+  }, [settings]);
+
   // 予定通知チェック（アプリ起動時 + 毎分）
   const checkNotifications = useCallback(() => {
     if (!settings.notifyEnabled || Notification?.permission !== "granted") return;
@@ -947,7 +1025,7 @@ export default function App() {
   const showBack = ["addPlant", "addLog", "editLog"].includes(view);
 
   return (
-    <div style={{ fontFamily: "'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif", background: "#f0f7f0", minHeight: "100vh", maxWidth: 480, margin: "0 auto", paddingBottom: 90 }}>
+    <div style={{ fontFamily: "'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif", minHeight: "100vh", maxWidth: 480, margin: "0 auto", paddingBottom: 90 }}>
 
       {/* ヘッダ */}
       <div style={{ background: "linear-gradient(135deg,#2e7d32 0%,#66bb6a 100%)", padding: "20px 20px 30px", color: "#fff", borderRadius: "0 0 28px 28px", boxShadow: "0 4px 20px #2e7d3230" }}>
@@ -986,14 +1064,14 @@ export default function App() {
               activePlants.length === 0
                 ? <div style={{ textAlign: "center", color: "#bbb", padding: "40px 0", fontSize: 14 }}>栽培中の野菜はありません<br />「＋ 追加」から始めましょう！</div>
                 : <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                  {activePlants.map(p => <PlantCard key={p.id} plant={p} onClick={() => { setSelectedId(p.id); setView("detail"); }} />)}
+                  {activePlants.map(p => <PlantCard key={p.id} plant={p} onClick={() => { setSelectedId(p.id); setView("detail"); }} onDelete={deletePlant} />)}
                 </div>
             )}
             {dashTab === "finished" && (
               finishedPlants.length === 0
                 ? <div style={{ textAlign: "center", color: "#bbb", padding: "40px 0", fontSize: 14 }}>栽培終了の野菜はありません</div>
                 : <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                  {finishedPlants.map(p => <PlantCard key={p.id} plant={p} finished onClick={() => { setSelectedId(p.id); setView("detail"); }} />)}
+                  {finishedPlants.map(p => <PlantCard key={p.id} plant={p} finished onClick={() => { setSelectedId(p.id); setView("detail"); }} onDelete={deletePlant} />)}
                 </div>
             )}
           </div>
