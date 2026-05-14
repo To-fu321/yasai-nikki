@@ -626,7 +626,7 @@ function CalendarView({ plants, schedules, onSelectPlant, onAddSchedule, onDelet
 
                 <div style={{ display: "flex", gap: 10 }}>
                   <button onClick={cancelEdit}
-                    style={{ flex: 1, padding: "12px", borderRadius: 14, border: "1px solid #ddd", background: "#fff", fontSize: 13, cursor: "pointer" }}>
+                    style={{ flex: 1, padding: "12px", borderRadius: 14, border: "1px solid #bbb", background: "#f5f5f5", color: "#333", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                     キャンセル
                   </button>
                   <button onClick={handleSaveEdit}
@@ -745,7 +745,7 @@ function LogForm({ title, value, onChange, onSave, onCancel, saveLabel = "💾 �
         <PhotoUploader photos={value.photos || []} onChange={photos => onChange({ ...value, photos })} />
       </Field>
       <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-        <button onClick={onCancel} style={{ flex: 1, background: "#f0f7f0", color: "#5a7a5a", border: "none", borderRadius: 16, padding: "14px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+        <button onClick={onCancel} style={{ flex: 1, background: "#f5f5f5", color: "#333", border: "1px solid #bbb", borderRadius: 16, padding: "14px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
           キャンセル
         </button>
         <button onClick={onSave} style={{ flex: 2, background: "linear-gradient(135deg,#2e7d32,#66bb6a)", color: "#fff", border: "none", borderRadius: 16, padding: "14px", fontWeight: 700, fontSize: 15, cursor: "pointer", boxShadow: "0 4px 14px #2e7d3240" }}>
@@ -811,7 +811,7 @@ function PlantCard({ plant, onClick, onDelete, finished = false }) {
           <div style={{ fontSize: 11, color: "#e57373", textAlign: "center" }}>記録もすべて消えます</div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => setConfirmDelete(false)}
-              style={{ padding: "7px 16px", borderRadius: 10, border: "1px solid #ddd", background: "#fff", fontSize: 12, cursor: "pointer" }}>
+              style={{ padding: "7px 16px", borderRadius: 10, border: "1px solid #bbb", background: "#f5f5f5", color: "#333", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
               キャンセル
             </button>
             <button onClick={() => { setConfirmDelete(false); onDelete(plant.id); }}
@@ -851,6 +851,8 @@ export default function App() {
   const [reviveConfirm, setReviveConfirm] = useState(false);
   const [lightbox, setLightbox] = useState(null); // { photos, index }
   const [showUpcoming, setShowUpcoming] = useState(false);
+  const [editingPlantedDate, setEditingPlantedDate] = useState(false);
+  const [plantedDateDraft, setPlantedDateDraft] = useState("");
   const [settings, setSettings] = useState(() => {
     try {
       const saved = localStorage.getItem("yasai_settings");
@@ -887,7 +889,7 @@ export default function App() {
     setPlants(prev => [...prev, {
       id: Date.now(), name: newPlant.name, emoji: newPlant.emoji, plantedDate: newPlant.plantedDate,
       finished: false, finishedDate: null,
-      logs: [{ id: newLogId(), date: newPlant.plantedDate, type: "plant", note: "植え付け", weather: "☀️ 晴れ", temp: "", watered: false, photos: [] }],
+      logs: [{ id: newLogId(), date: newPlant.plantedDate, type: "plant", note: "植え付け", weather: "☀️ 晴れ", temp: "", watered: true, photos: [] }],
     }]);
     setNewPlant({ name: "", emoji: "🌱", plantedDate: new Date().toISOString().slice(0, 10) });
     setView("dashboard");
@@ -1174,7 +1176,15 @@ export default function App() {
                 <div style={{ fontSize: 12, color: "#888" }}>
                   {selectedPlant.finished
                     ? `${formatDate(selectedPlant.plantedDate)} 〜 ${formatDate(selectedPlant.finishedDate)}（${growDays(selectedPlant)}日間）`
-                    : `植付け ${formatDate(selectedPlant.plantedDate)} ／ ${daysSince(selectedPlant.plantedDate)}日目`}
+                    : (
+                      <span>
+                        植付け {formatDate(selectedPlant.plantedDate)} ／ {daysSince(selectedPlant.plantedDate)}日目
+                        <button onClick={() => { setPlantedDateDraft(selectedPlant.plantedDate); setEditingPlantedDate(true); }}
+                          style={{ marginLeft: 6, fontSize: 10, padding: "1px 7px", borderRadius: 8, border: "1px solid #dceedd", background: "#f5fbf5", color: "#2e7d32", cursor: "pointer", fontWeight: 600 }}>
+                          編集
+                        </button>
+                      </span>
+                    )}
                 </div>
                 {totalHarvest(selectedPlant) > 0 && <div style={{ fontSize: 12, color: "#ff9800", fontWeight: 600 }}>🎉 累計収穫 {totalHarvest(selectedPlant)}個</div>}
               </div>
@@ -1201,6 +1211,32 @@ export default function App() {
               )}
             </div>
 
+            {/* 植え付け日編集モーダル */}
+            {editingPlantedDate && (
+              <div style={{ position: "fixed", inset: 0, background: "#0006", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 24 }}>
+                <div style={{ background: "#fff", borderRadius: 20, padding: 24, width: "100%", maxWidth: 340, boxShadow: "0 8px 32px #0003" }}>
+                  <div style={{ fontWeight: 700, fontSize: 16, color: "#1b4f1b", marginBottom: 6 }}>🌱 植え付け日を編集</div>
+                  <div style={{ fontSize: 13, color: "#666", marginBottom: 16 }}>「{selectedPlant.name}」の植え付け日を変更します。</div>
+                  <Field label="植え付け日">
+                    <input type="date" value={plantedDateDraft} onChange={e => setPlantedDateDraft(e.target.value)} style={inputStyle} />
+                  </Field>
+                  <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                    <button onClick={() => setEditingPlantedDate(false)}
+                      style={{ flex: 1, padding: "12px", borderRadius: 14, border: "1px solid #bbb", background: "#f5f5f5", color: "#333", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                      キャンセル
+                    </button>
+                    <button onClick={() => {
+                      setPlants(prev => prev.map(p => p.id === selectedId ? { ...p, plantedDate: plantedDateDraft } : p));
+                      setEditingPlantedDate(false);
+                    }}
+                      style={{ flex: 1, padding: "12px", borderRadius: 14, border: "none", background: "#2e7d32", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                      保存する
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* 栽培終了確認 */}
             {finishConfirm && (
               <div style={{ position: "fixed", inset: 0, background: "#0006", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 24 }}>
@@ -1211,7 +1247,7 @@ export default function App() {
                     <input type="date" value={finishDate} onChange={e => setFinishDate(e.target.value)} style={inputStyle} />
                   </Field>
                   <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-                    <button onClick={() => setFinishConfirm(false)} style={{ flex: 1, padding: "12px", borderRadius: 14, border: "1px solid #ddd", background: "#fff", fontSize: 14, cursor: "pointer" }}>キャンセル</button>
+                    <button onClick={() => setFinishConfirm(false)} style={{ flex: 1, padding: "12px", borderRadius: 14, border: "1px solid #bbb", background: "#f5f5f5", color: "#333", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>キャンセル</button>
                     <button onClick={finishPlant} style={{ flex: 1, padding: "12px", borderRadius: 14, border: "none", background: "#e64a19", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>終了する</button>
                   </div>
                 </div>
@@ -1225,7 +1261,7 @@ export default function App() {
                   <div style={{ fontWeight: 700, fontSize: 16, color: "#1b4f1b", marginBottom: 8 }}>🌱 栽培を再開</div>
                   <div style={{ fontSize: 13, color: "#666", marginBottom: 20 }}>「{selectedPlant.name}」を栽培中に戻します。よろしいですか？</div>
                   <div style={{ display: "flex", gap: 10 }}>
-                    <button onClick={() => setReviveConfirm(false)} style={{ flex: 1, padding: "12px", borderRadius: 14, border: "1px solid #ddd", background: "#fff", fontSize: 14, cursor: "pointer" }}>キャンセル</button>
+                    <button onClick={() => setReviveConfirm(false)} style={{ flex: 1, padding: "12px", borderRadius: 14, border: "1px solid #bbb", background: "#f5f5f5", color: "#333", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>キャンセル</button>
                     <button onClick={revivePlant} style={{ flex: 1, padding: "12px", borderRadius: 14, border: "none", background: "#2e7d32", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>再開する</button>
                   </div>
                 </div>
@@ -1294,7 +1330,7 @@ export default function App() {
                     <div style={{ position: "absolute", inset: 0, background: "#fff5f5ee", borderRadius: 14, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, zIndex: 10 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: "#c62828" }}>この記録を削除しますか？</div>
                       <div style={{ display: "flex", gap: 10 }}>
-                        <button onClick={() => setDeleteConfirm(null)} style={{ padding: "8px 20px", borderRadius: 12, border: "1px solid #ddd", background: "#fff", fontSize: 13, cursor: "pointer" }}>キャンセル</button>
+                        <button onClick={() => setDeleteConfirm(null)} style={{ padding: "8px 20px", borderRadius: 12, border: "1px solid #bbb", background: "#f5f5f5", color: "#333", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>キャンセル</button>
                         <button onClick={() => deleteLog(log.id)} style={{ padding: "8px 20px", borderRadius: 12, border: "none", background: "#e53935", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>削除する</button>
                       </div>
                     </div>
