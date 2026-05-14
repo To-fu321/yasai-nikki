@@ -1266,7 +1266,7 @@ export default function App() {
                         </div>
                       )}
                     </div>
-                    {log.note && <div style={{ fontSize: 13, color: "#444", marginBottom: 4 }}>{log.note}</div>}
+                    {log.note && <div style={{ fontSize: 13, color: "#444", marginBottom: 4, textAlign: "left" }}>{log.note}</div>}
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: log.photos?.length > 0 ? 8 : 0 }}>
                       {log.weather && <span style={{ fontSize: 11, color: "#888" }}>{log.weather}</span>}
                       {log.temp !== "" && log.temp !== undefined && <span style={{ fontSize: 11, color: "#888" }}>🌡 {log.temp}℃</span>}
