@@ -1025,7 +1025,7 @@ export default function App() {
   const showBack = ["addPlant", "addLog", "editLog"].includes(view);
 
   return (
-    <div style={{ fontFamily: "'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif", minHeight: "100vh", maxWidth: 480, margin: "0 auto", paddingBottom: 90 }}>
+    <div style={{ fontFamily: "'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif", minHeight: "100vh", width: "100%", maxWidth: 480, margin: "0 auto", paddingBottom: 90 }}>
 
       {/* ヘッダ */}
       <div style={{ background: "linear-gradient(135deg,#2e7d32 0%,#66bb6a 100%)", padding: "20px 20px 30px", color: "#fff", borderRadius: "0 0 28px 28px", boxShadow: "0 4px 20px #2e7d3230" }}>
