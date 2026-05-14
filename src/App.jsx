@@ -36,11 +36,7 @@ const scheduleLabel = {
 let _nextSchedId = 200;
 function newSchedId() { return ++_nextSchedId; }
 
-const INITIAL_SCHEDULES = [
-  { id: 201, date: "2026-05-16", type: "harvest",   plantId: 1, note: "2回目の収穫予定" },
-  { id: 202, date: "2026-05-18", type: "water",     plantId: null, note: "全体に水やり" },
-  { id: 203, date: "2026-05-20", type: "fertilize", plantId: 2, note: "バジルに液肥" },
-];
+const INITIAL_SCHEDULES = [];
 
 let _nextLogId = 100;
 function newLogId() { return ++_nextLogId; }
@@ -56,25 +52,7 @@ const DEMO = {
   basilLeaf:      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/Hapshash-basil.jpg/320px-Hapshash-basil.jpg",
 };
 
-const INITIAL_PLANTS = [
-  {
-    id: 1, name: "ミニトマト", emoji: "🍅", plantedDate: "2026-04-01", finished: false, finishedDate: null,
-    logs: [
-      { id: 1, date: "2026-04-01", type: "plant",   note: "苗を植えた",     weather: "☀️ 晴れ", temp: 18, watered: true,  photos: [DEMO.tomatoSeedling] },
-      { id: 2, date: "2026-04-10", type: "growth",  note: "葉が5枚に増えた", weather: "⛅ 曇り",  temp: 16, watered: true,  height: 12, photos: [DEMO.tomatoGrowing] },
-      { id: 3, date: "2026-05-01", type: "harvest", note: "初収穫！",        weather: "☀️ 晴れ", temp: 22, watered: false, harvest: 8, photos: [DEMO.tomatoHarvest, DEMO.tomatoRipe] },
-      { id: 4, date: "2026-05-08", type: "growth",  note: "脇芽を摘んだ",   weather: "☀️ 晴れ", temp: 24, watered: true,  height: 45, photos: [] },
-    ],
-  },
-  {
-    id: 2, name: "バジル", emoji: "🌿", plantedDate: "2026-04-15", finished: false, finishedDate: null,
-    logs: [
-      { id: 5, date: "2026-04-15", type: "plant",  note: "種をまいた",      weather: "☀️ 晴れ", temp: 20, watered: true, photos: [DEMO.basilSeed] },
-      { id: 6, date: "2026-04-25", type: "growth", note: "発芽確認",         weather: "☀️ 晴れ", temp: 21, watered: true, height: 3,  photos: [DEMO.basilSprout] },
-      { id: 7, date: "2026-05-05", type: "growth", note: "本葉が出てきた",   weather: "⛅ 曇り",  temp: 19, watered: true, height: 8,  photos: [DEMO.basilLeaf] },
-    ],
-  },
-];
+const INITIAL_PLANTS = [];
 
 function formatDate(str) {
   if (!str) return "";
