@@ -563,7 +563,7 @@ function CalendarView({ plants, schedules, onSelectPlant, onAddSchedule, onDelet
                         {plant && <span style={{ fontSize: 11, color: "#888" }}>{plant.emoji} {plant.name}</span>}
                         {!plant && s.plantId === null && <span style={{ fontSize: 11, color: "#aaa" }}>全体</span>}
                       </div>
-                      {s.note && <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{s.note}</div>}
+                      {s.note && <div style={{ fontSize: 11, color: "#666", marginTop: 2, textAlign: "left" }}>{s.note}</div>}
                     </div>
                     <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
                       <button onClick={() => startEditSched(s)}
@@ -652,7 +652,7 @@ function CalendarView({ plants, schedules, onSelectPlant, onAddSchedule, onDelet
                         <span style={{ fontSize: 11, background: typeColor[log.type] + "22", color: typeColor[log.type], borderRadius: 8, padding: "1px 8px", fontWeight: 600 }}>{typeLabel[log.type]}</span>
                         {log.watered && <span style={{ fontSize: 11, background: "#e3f2fd", color: "#1976d2", borderRadius: 8, padding: "1px 6px" }}>💧</span>}
                       </div>
-                      {log.note && <div style={{ fontSize: 12, color: "#555", marginBottom: 3 }}>{log.note}</div>}
+                      {log.note && <div style={{ fontSize: 12, color: "#555", marginBottom: 3, textAlign: "left" }}>{log.note}</div>}
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         {log.weather && <span style={{ fontSize: 11, color: "#888" }}>{log.weather}</span>}
                         {log.temp !== "" && log.temp !== undefined && <span style={{ fontSize: 11, color: "#888" }}>🌡 {log.temp}℃</span>}
@@ -1143,7 +1143,7 @@ export default function App() {
                                 {plant && <span style={{ fontSize: 12, color: "#888" }}>{plant.emoji} {plant.name}</span>}
                                 {!plant && <span style={{ fontSize: 12, color: "#aaa" }}>全体</span>}
                               </div>
-                              {s.note && <div style={{ fontSize: 12, color: "#666" }}>{s.note}</div>}
+                              {s.note && <div style={{ fontSize: 12, color: "#666", textAlign: "left" }}>{s.note}</div>}
                               <div style={{ fontSize: 11, color: "#aaa", marginTop: 2 }}>{s.date}</div>
                             </div>
                             <div style={{ textAlign: "center", flexShrink: 0 }}>
