@@ -17,6 +17,13 @@ const typeLabel = {
 
 const DOW = ["日", "月", "火", "水", "木", "金", "土"];
 
+// 日本時間（JST）で今日の日付を "YYYY-MM-DD" で返す
+function getTodayJST() {
+  const now = new Date();
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return jst.toISOString().slice(0, 10);
+}
+
 // ── 予定の種別 ────────────────────────────────────────────────
 const scheduleColor = {
   harvest:   "#ff6f00",
@@ -64,18 +71,37 @@ function daysSince(str) {
   return Math.floor((Date.now() - new Date(str)) / 86400000);
 }
 function growDays(plant) {
-  const end = plant.finishedDate || new Date().toISOString().slice(0, 10);
+  const end = plant.finishedDate || getTodayJST();
   return Math.floor((new Date(end) - new Date(plant.plantedDate)) / 86400000);
 }
 function blankLog() {
-  return { date: new Date().toISOString().slice(0, 10), type: "growth", note: "", weather: "☀️ 晴れ", temp: "", watered: false, height: "", harvest: "", photos: [] };
+  return { date: getTodayJST(), type: "growth", note: "", weather: "☀️ 晴れ", temp: "", watered: false, height: "", harvest: "", photos: [] };
 }
 
 // ── 写真をBase64に変換 ────────────────────────────────────────
 function readFileAsDataURL(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = e => resolve(e.target.result);
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        // 最大800px・品質0.7で圧縮
+        const MAX = 800;
+        let w = img.width;
+        let h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.7));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
@@ -377,7 +403,7 @@ function CalendarView({ plants, schedules, onSelectPlant, onAddSchedule, onDelet
 
   const firstDow = new Date(calYear, calMonth, 1).getDay();
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
-  const todayStr = today.toISOString().slice(0, 10);
+  const todayStr = getTodayJST();
   const cells = [];
   for (let i = 0; i < firstDow; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
@@ -450,10 +476,12 @@ function CalendarView({ plants, schedules, onSelectPlant, onAddSchedule, onDelet
           return (
             <div key={day} onClick={() => { setSelectedDay(isSel ? null : day); setAddingSched(false); }}
               style={{ borderRadius: 10, padding: "5px 2px 4px", textAlign: "center", minHeight: 52, cursor: "pointer", transition: "all .12s",
-                background: isSel ? "#2e7d32" : isToday ? "#e8f5e9" : "#fff",
+                background: isSel ? "#2e7d32" : "#fff",
                 border: isToday && !isSel ? "2px solid #66bb6a" : "2px solid transparent",
                 boxShadow: isSel ? "0 2px 8px #2e7d3240" : "0 1px 4px #0001" }}>
-              <div style={{ fontSize: 13, fontWeight: isToday ? 700 : 500, color: isSel ? "#fff" : dow === 0 ? "#e57373" : dow === 6 ? "#1976d2" : "#333" }}>{day}</div>
+              <div style={{ fontSize: 13, fontWeight: isToday ? 700 : 500, color: isSel ? "#fff" : dow === 0 ? "#e57373" : dow === 6 ? "#1976d2" : isToday ? "#2e7d32" : "#333" }}>{day}</div>
+              {/* 当日インジケーター */}
+              {isToday && !isSel && <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#2e7d32", margin: "1px auto 0" }} />}
               {/* 実績ドット */}
               <div style={{ display: "flex", justifyContent: "center", gap: 2, marginTop: 2, flexWrap: "wrap" }}>
                 {logTypes.map(t => <div key={t} style={{ width: 5, height: 5, borderRadius: "50%", background: isSel ? "rgba(255,255,255,.8)" : typeColor[t] }} />)}
@@ -692,6 +720,13 @@ const navBtn = {
 
 // ── ログフォーム ──────────────────────────────────────────────
 function LogForm({ title, value, onChange, onSave, onCancel, saveLabel = "💾 保存" }) {
+  const [submitting, setSubmitting] = useState(false);
+
+  function handleSave() {
+    if (submitting) return;
+    setSubmitting(true);
+    onSave();
+  }
   return (
     <div>
       <div style={{ fontWeight: 700, fontSize: 17, color: "#1b4f1b", marginBottom: 18 }}>{title}</div>
@@ -712,7 +747,7 @@ function LogForm({ title, value, onChange, onSave, onCancel, saveLabel = "💾 �
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {WEATHER_OPTIONS.map(w => (
             <button key={w} onClick={() => onChange({ ...value, weather: w })}
-              style={{ padding: "6px 12px", borderRadius: 16, fontSize: 12, cursor: "pointer", border: `2px solid ${value.weather === w ? "#66bb6a" : "#ddd"}`, background: value.weather === w ? "#e8f5e9" : "#fff" }}>
+              style={{ padding: "6px 12px", borderRadius: 16, fontSize: 12, cursor: "pointer", border: `2px solid ${value.weather === w ? "#66bb6a" : "#ddd"}`, background: value.weather === w ? "#e8f5e9" : "#fff", color: "#333" }}>
               {w}
             </button>
           ))}
@@ -722,10 +757,13 @@ function LogForm({ title, value, onChange, onSave, onCancel, saveLabel = "💾 �
         <input type="number" value={value.temp} onChange={e => onChange({ ...value, temp: e.target.value })} placeholder="例: 22" style={inputStyle} />
       </Field>
       <Field label="水やり">
-        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-          <input type="checkbox" checked={value.watered} onChange={e => onChange({ ...value, watered: e.target.checked })} style={{ width: 18, height: 18 }} />
+        <div onClick={() => onChange({ ...value, watered: !value.watered })}
+          style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+          <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${value.watered ? "#2e7d32" : "#ccc"}`, background: value.watered ? "#2e7d32" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .15s" }}>
+            {value.watered && <span style={{ color: "#fff", fontSize: 14, fontWeight: 700, lineHeight: 1 }}>✓</span>}
+          </div>
           <span style={{ fontSize: 14, color: "#444" }}>今日水やりした</span>
-        </label>
+        </div>
       </Field>
       {value.type === "growth" && (
         <Field label="草丈 (cm)">
@@ -748,7 +786,7 @@ function LogForm({ title, value, onChange, onSave, onCancel, saveLabel = "💾 �
         <button onClick={onCancel} style={{ flex: 1, background: "#f5f5f5", color: "#333", border: "1px solid #bbb", borderRadius: 16, padding: "14px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
           キャンセル
         </button>
-        <button onClick={onSave} style={{ flex: 2, background: "linear-gradient(135deg,#2e7d32,#66bb6a)", color: "#fff", border: "none", borderRadius: 16, padding: "14px", fontWeight: 700, fontSize: 15, cursor: "pointer", boxShadow: "0 4px 14px #2e7d3240" }}>
+        <button onClick={handleSave} disabled={submitting} style={{ flex: 2, background: "linear-gradient(135deg,#2e7d32,#66bb6a)", color: "#fff", border: "none", borderRadius: 16, padding: "14px", fontWeight: 700, fontSize: 15, cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.7 : 1, boxShadow: "0 4px 14px #2e7d3240" }}>
           {saveLabel}
         </button>
       </div>
@@ -842,12 +880,12 @@ export default function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [view, setView] = useState("dashboard");
   const [dashTab, setDashTab] = useState("active");
-  const [newPlant, setNewPlant] = useState({ name: "", emoji: "🌱", plantedDate: new Date().toISOString().slice(0, 10) });
+  const [newPlant, setNewPlant] = useState({ name: "", emoji: "🌱", plantedDate: getTodayJST() });
   const [logDraft, setLogDraft] = useState(blankLog());
   const [editingLogId, setEditingLogId] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [finishConfirm, setFinishConfirm] = useState(false);
-  const [finishDate, setFinishDate] = useState(new Date().toISOString().slice(0, 10));
+  const [finishDate, setFinishDate] = useState(getTodayJST());
   const [reviveConfirm, setReviveConfirm] = useState(false);
   const [lightbox, setLightbox] = useState(null); // { photos, index }
   const [showUpcoming, setShowUpcoming] = useState(false);
@@ -891,12 +929,12 @@ export default function App() {
       finished: false, finishedDate: null,
       logs: [{ id: newLogId(), date: newPlant.plantedDate, type: "plant", note: "植え付け", weather: "☀️ 晴れ", temp: "", watered: true, photos: [] }],
     }]);
-    setNewPlant({ name: "", emoji: "🌱", plantedDate: new Date().toISOString().slice(0, 10) });
+    setNewPlant({ name: "", emoji: "🌱", plantedDate: getTodayJST() });
     setView("dashboard");
   }
 
   function addLog() {
-    if (!selectedPlant) return;
+    if (!selectedPlant || !logDraft.date) return;
     const log = { ...logDraft, id: newLogId() };
     setPlants(prev => prev.map(p => p.id === selectedId ? { ...p, logs: [...p.logs, log].sort((a, b) => a.date.localeCompare(b.date)) } : p));
     setLogDraft(blankLog());
@@ -904,6 +942,7 @@ export default function App() {
   }
 
   function saveEditLog() {
+    if (!editingLogId) return; // 編集IDがない場合は何もしない
     setPlants(prev => prev.map(p =>
       p.id === selectedId
         ? { ...p, logs: p.logs.map(l => l.id === editingLogId ? { ...logDraft, id: editingLogId } : l).sort((a, b) => a.date.localeCompare(b.date)) }
@@ -920,6 +959,7 @@ export default function App() {
   }
 
   function startEdit(log) {
+    setDeleteConfirm(null); // 削除確認が出ていたらリセット
     setEditingLogId(log.id);
     setLogDraft({ ...log, photos: log.photos || [] });
     setView("editLog");
@@ -967,7 +1007,16 @@ export default function App() {
 
   // データを localStorage に自動保存
   useEffect(() => {
-    try { localStorage.setItem("yasai_plants", JSON.stringify(plants)); } catch {}
+    try {
+      localStorage.setItem("yasai_plants", JSON.stringify(plants));
+    } catch (e) {
+      // 容量超過の場合、写真データを除いて保存
+      try {
+        const slim = plants.map(p => ({ ...p, logs: p.logs.map(l => ({ ...l, photos: [] })) }));
+        localStorage.setItem("yasai_plants", JSON.stringify(slim));
+        console.warn("写真データが大きいため、写真を除いて保存しました。");
+      } catch {}
+    }
   }, [plants]);
 
   useEffect(() => {
@@ -984,7 +1033,7 @@ export default function App() {
     const now = new Date();
     const hhmm = now.toTimeString().slice(0, 5);
     if (hhmm !== settings.notifyTime) return;
-    const todayStr = now.toISOString().slice(0, 10);
+    const todayStr = getTodayJST();
     const checkDates = [];
     if (settings.notifyOnDay)    checkDates.push({ offset: 0, label: "本日" });
     if (settings.notifyDayBefore) checkDates.push({ offset: 1, label: "明日" });
@@ -1085,8 +1134,9 @@ export default function App() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
               <div style={{ fontSize: 13, color: "#5a7a5a", fontWeight: 600 }}>📅 カレンダー — 全野菜の記録</div>
               {(() => {
-                const todayStr = new Date().toISOString().slice(0, 10);
-                const in7days = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+                const todayStr = getTodayJST();
+                const jst7 = new Date(new Date().getTime() + (9 * 60 + 7 * 24 * 60) * 60 * 1000);
+                const in7days = jst7.toISOString().slice(0, 10);
                 const cnt = schedules.filter(s => s.date >= todayStr && s.date <= in7days).length;
                 return (
                   <button onClick={() => setShowUpcoming(true)}
@@ -1105,8 +1155,9 @@ export default function App() {
 
         {/* 今後7日間の予定ポップアップ */}
         {showUpcoming && (() => {
-          const todayStr = new Date().toISOString().slice(0, 10);
-          const in7days = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+          const todayStr = getTodayJST();
+          const jst7 = new Date(new Date().getTime() + (9 * 60 + 7 * 24 * 60) * 60 * 1000);
+          const in7days = jst7.toISOString().slice(0, 10);
           const upcoming = schedules
             .filter(s => s.date >= todayStr && s.date <= in7days)
             .sort((a, b) => a.date.localeCompare(b.date));
@@ -1199,7 +1250,7 @@ export default function App() {
             {/* 栽培終了 / 再開ボタン */}
             <div style={{ marginBottom: 18 }}>
               {!selectedPlant.finished ? (
-                <button onClick={() => { setFinishDate(new Date().toISOString().slice(0, 10)); setFinishConfirm(true); }}
+                <button onClick={() => { setFinishDate(getTodayJST()); setFinishConfirm(true); }}
                   style={{ width: "100%", padding: "11px", borderRadius: 14, border: "2px solid #ffccbc", background: "#fff8f6", color: "#e64a19", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                   🏁 栽培終了にする
                 </button>
@@ -1371,14 +1422,23 @@ export default function App() {
               <input value={newPlant.name} onChange={e => setNewPlant(p => ({ ...p, name: e.target.value }))} placeholder="例: キュウリ、ナス…" style={inputStyle} />
             </Field>
             <Field label="絵文字">
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {["🌱", "🍅", "🥬", "🥒", "🍆", "🌽", "🧅", "🥕", "🫑", "🌿", "🍓", "🫐"].map(e => (
-                  <button key={e} onClick={() => setNewPlant(p => ({ ...p, emoji: e }))}
-                    style={{ width: 40, height: 40, borderRadius: 10, border: `2px solid ${newPlant.emoji === e ? "#2e7d32" : "#ddd"}`, background: newPlant.emoji === e ? "#e8f5e9" : "#fff", fontSize: 22, cursor: "pointer" }}>
-                    {e}
-                  </button>
-                ))}
-              </div>
+              {[
+                { label: "野菜", emojis: ["🥬", "🥦", "🥒", "🍆", "🌽", "🥕", "🧅", "🧄", "🫑", "🥔", "🍠", "🫛", "🌶️", "🥜", "🫘", "🌿", "🪴"] },
+                { label: "果実", emojis: ["🍅", "🍓", "🫐", "🍇", "🍈", "🍉", "🍊", "🍋", "🍌", "🍍", "🥭", "🍎", "🍐", "🍑", "🍒", "🥝", "🍑"] },
+                { label: "ハーブ・その他", emojis: ["🌱", "🌾", "🍄", "🌻", "🌸", "🌺", "🪷", "🌼", "🫚", "🍵", "🌰"] },
+              ].map(group => (
+                <div key={group.label} style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 10, color: "#aaa", fontWeight: 700, marginBottom: 5 }}>{group.label}</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {group.emojis.map(e => (
+                      <button key={e} onClick={() => setNewPlant(p => ({ ...p, emoji: e }))}
+                        style={{ width: 40, height: 40, borderRadius: 10, border: `2px solid ${newPlant.emoji === e ? "#2e7d32" : "#ddd"}`, background: newPlant.emoji === e ? "#e8f5e9" : "#fff", fontSize: 22, cursor: "pointer" }}>
+                        {e}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </Field>
             <Field label="植え付け日">
               <input type="date" value={newPlant.plantedDate} onChange={e => setNewPlant(p => ({ ...p, plantedDate: e.target.value }))} style={inputStyle} />
