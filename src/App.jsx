@@ -868,8 +868,9 @@ export default function App() {
   const [plants, setPlants] = useState(() => {
     try {
       const saved = localStorage.getItem("yasai_plants");
-      return saved ? JSON.parse(saved) : INITIAL_PLANTS;
-    } catch { return INITIAL_PLANTS; }
+      // JSON.parse/stringify で完全な独立コピーを作成
+      return saved ? JSON.parse(JSON.stringify(JSON.parse(saved))) : [];
+    } catch { return []; }
   });
   const [schedules, setSchedules] = useState(() => {
     try {
@@ -935,17 +936,23 @@ export default function App() {
 
   function addLog() {
     if (!selectedPlant || !logDraft.date) return;
-    const log = { ...logDraft, id: newLogId() };
-    setPlants(prev => prev.map(p => p.id === selectedId ? { ...p, logs: [...p.logs, log].sort((a, b) => a.date.localeCompare(b.date)) } : p));
+    // JSON経由で完全な独立コピーとして保存
+    const log = JSON.parse(JSON.stringify({ ...logDraft, id: newLogId() }));
+    setPlants(prev => prev.map(p => p.id === selectedId
+      ? { ...p, logs: [...p.logs, log].sort((a, b) => a.date.localeCompare(b.date)) }
+      : p
+    ));
     setLogDraft(blankLog());
     setView("detail");
   }
 
   function saveEditLog() {
-    if (!editingLogId) return; // 編集IDがない場合は何もしない
+    if (!editingLogId) return;
+    // JSON経由で完全な独立コピーとして保存
+    const updatedLog = JSON.parse(JSON.stringify({ ...logDraft, id: editingLogId }));
     setPlants(prev => prev.map(p =>
       p.id === selectedId
-        ? { ...p, logs: p.logs.map(l => l.id === editingLogId ? { ...logDraft, id: editingLogId } : l).sort((a, b) => a.date.localeCompare(b.date)) }
+        ? { ...p, logs: p.logs.map(l => l.id === editingLogId ? updatedLog : l).sort((a, b) => a.date.localeCompare(b.date)) }
         : p
     ));
     setEditingLogId(null);
@@ -961,7 +968,9 @@ export default function App() {
   function startEdit(log) {
     setDeleteConfirm(null); // 削除確認が出ていたらリセット
     setEditingLogId(log.id);
-    setLogDraft({ ...log, photos: log.photos || [] });
+    // JSON経由で完全な独立コピーを作成（参照共有を防ぐ）
+    const logCopy = JSON.parse(JSON.stringify({ ...log, photos: log.photos || [] }));
+    setLogDraft(logCopy);
     setView("editLog");
   }
 
@@ -1377,18 +1386,23 @@ export default function App() {
                       </div>
                     )}
                   </div>
-                  {deleteConfirm === log.id && (
-                    <div style={{ position: "absolute", inset: 0, background: "#fff5f5ee", borderRadius: 14, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, zIndex: 10 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#c62828" }}>この記録を削除しますか？</div>
-                      <div style={{ display: "flex", gap: 10 }}>
-                        <button onClick={() => setDeleteConfirm(null)} style={{ padding: "8px 20px", borderRadius: 12, border: "1px solid #bbb", background: "#f5f5f5", color: "#333", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>キャンセル</button>
-                        <button onClick={() => deleteLog(log.id)} style={{ padding: "8px 20px", borderRadius: 12, border: "none", background: "#e53935", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>削除する</button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
+
+            {/* 記録削除確認モーダル（画面全体） */}
+            {deleteConfirm !== null && (
+              <div style={{ position: "fixed", inset: 0, background: "#0006", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 24 }}>
+                <div style={{ background: "#fff", borderRadius: 20, padding: 24, width: "100%", maxWidth: 320, boxShadow: "0 8px 32px #0003" }}>
+                  <div style={{ fontWeight: 700, fontSize: 16, color: "#c62828", textAlign: "center", marginBottom: 8 }}>この記録を削除しますか？</div>
+                  <div style={{ fontSize: 12, color: "#aaa", textAlign: "center", marginBottom: 20 }}>削除すると元に戻せません</div>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button onClick={() => setDeleteConfirm(null)} style={{ flex: 1, padding: "12px", borderRadius: 14, border: "1px solid #bbb", background: "#f5f5f5", color: "#333", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>キャンセル</button>
+                    <button onClick={() => deleteLog(deleteConfirm)} style={{ flex: 1, padding: "12px", borderRadius: 14, border: "none", background: "#e53935", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>削除する</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
