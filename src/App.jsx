@@ -45,7 +45,7 @@ async function idbLoadData(key) {
   } catch { return null; }
 }
 
-// 写真データの保存・読み込み・削除
+// 写真データの保存・読み込み・削除（DB接続を再利用して高速化）
 async function idbSavePhotos(logId, photos) {
   try {
     const db = await openIDB();
@@ -53,18 +53,6 @@ async function idbSavePhotos(logId, photos) {
     tx.objectStore(IDB_PHOTOS).put({ key: String(logId), photos });
     return new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
   } catch (e) { console.error("IDB photo save error:", e); }
-}
-
-async function idbLoadPhotos(logId) {
-  try {
-    const db = await openIDB();
-    const tx = db.transaction(IDB_PHOTOS, "readonly");
-    const req = tx.objectStore(IDB_PHOTOS).get(String(logId));
-    return new Promise(res => {
-      req.onsuccess = () => res(req.result?.photos || []);
-      req.onerror = () => res([]);
-    });
-  } catch { return []; }
 }
 
 async function idbDeletePhotos(logId) {
@@ -75,15 +63,44 @@ async function idbDeletePhotos(logId) {
   } catch {}
 }
 
+// DB接続を1回だけ開いて全写真を一括読み込み（高速）
 async function idbLoadAllPhotos(plants) {
-  const result = await Promise.all(plants.map(async plant => ({
-    ...plant,
-    logs: await Promise.all(plant.logs.map(async log => ({
-      ...log,
-      photos: await idbLoadPhotos(log.id),
-    }))),
-  })));
-  return result;
+  try {
+    const db = await openIDB(); // DB接続は1回のみ
+    const allLogIds = plants.flatMap(p => p.logs.map(l => String(l.id)));
+    if (allLogIds.length === 0) return plants;
+
+    // 全写真を1トランザクションで一括取得
+    const photoMap = {};
+    await new Promise((res, rej) => {
+      const tx = db.transaction(IDB_PHOTOS, "readonly");
+      const store = tx.objectStore(IDB_PHOTOS);
+      let pending = allLogIds.length;
+      if (pending === 0) { res(); return; }
+      allLogIds.forEach(id => {
+        const req = store.get(id);
+        req.onsuccess = () => {
+          photoMap[id] = req.result?.photos || [];
+          if (--pending === 0) res();
+        };
+        req.onerror = () => {
+          photoMap[id] = [];
+          if (--pending === 0) res();
+        };
+      });
+    });
+
+    return plants.map(plant => ({
+      ...plant,
+      logs: plant.logs.map(log => ({
+        ...log,
+        photos: photoMap[String(log.id)] || [],
+      })),
+    }));
+  } catch (e) {
+    console.error("IDB load all photos error:", e);
+    return plants; // エラー時は写真なしで返す
+  }
 }
 
 const WEATHER_OPTIONS = ["☀️ 晴れ", "⛅ 曇り", "🌧 雨", "🌩 嵐", "❄️ 雪"];
@@ -1080,47 +1097,55 @@ export default function App() {
 
   const totalHarvest = p => p.logs.filter(l => l.type === "harvest").reduce((s, l) => s + (Number(l.harvest) || 0), 0);
 
-  // 背景色をbody全体に適用
-  useEffect(() => {
-    document.body.style.background = "#f0f7f0";
-    document.body.style.margin = "0";
-    return () => { document.body.style.background = ""; };
-  }, []);
+  // 背景色をbody全体に即時適用（ローディング中も含む）
+  document.body.style.background = "#f0f7f0";
+  document.body.style.margin = "0";
 
   // ── 起動時：IndexedDBから全データを読み込む ──
   useEffect(() => {
-    async function loadAll() {
-      // テキストデータを読み込む
-      const savedPlants    = await idbLoadData("plants");
-      const savedSchedules = await idbLoadData("schedules");
-      const savedSettings  = await idbLoadData("settings");
-
-      // plants: IDの重複修正 → 写真を合成
-      let loadedPlants = savedPlants ?? INITIAL_PLANTS;
-      const usedIds = new Set();
-      loadedPlants = loadedPlants.map(plant => ({
-        ...plant,
-        logs: plant.logs.map(log => {
-          if (!log.id || usedIds.has(log.id)) {
-            const newId = Date.now() + Math.floor(Math.random() * 100000);
-            usedIds.add(newId);
-            return { ...log, id: newId, photos: [] };
-          }
-          usedIds.add(log.id);
-          return { ...log, photos: [] };
-        })
-      }));
-
-      // 写真を合成
-      const withPhotos = await idbLoadAllPhotos(loadedPlants);
-      setPlants(withPhotos);
-      setPhotosLoaded(true);
-
-      if (savedSchedules) setSchedules(savedSchedules);
-      if (savedSettings)  setSettings(s => ({ ...s, ...savedSettings }));
+    // 5秒でタイムアウトしてもアプリを表示する
+    const timeout = setTimeout(() => {
       setDataLoaded(true);
+      setPhotosLoaded(true);
+    }, 5000);
+
+    async function loadAll() {
+      try {
+        const savedPlants    = await idbLoadData("plants");
+        const savedSchedules = await idbLoadData("schedules");
+        const savedSettings  = await idbLoadData("settings");
+
+        let loadedPlants = savedPlants ?? [];
+        const usedIds = new Set();
+        loadedPlants = loadedPlants.map(plant => ({
+          ...plant,
+          logs: plant.logs.map(log => {
+            if (!log.id || usedIds.has(log.id)) {
+              const newId = Date.now() + Math.floor(Math.random() * 100000);
+              usedIds.add(newId);
+              return { ...log, id: newId, photos: [] };
+            }
+            usedIds.add(log.id);
+            return { ...log, photos: [] };
+          })
+        }));
+
+        const withPhotos = await idbLoadAllPhotos(loadedPlants);
+        setPlants(withPhotos);
+        setPhotosLoaded(true);
+
+        if (savedSchedules) setSchedules(savedSchedules);
+        if (savedSettings)  setSettings(s => ({ ...s, ...savedSettings }));
+      } catch (e) {
+        console.error("IDB load error:", e);
+      } finally {
+        clearTimeout(timeout);
+        setDataLoaded(true);
+      }
     }
     loadAll();
+
+    return () => clearTimeout(timeout);
   }, []);
 
   // ── データ変更時：IndexedDBに自動保存 ──
