@@ -975,7 +975,9 @@ function PlantCard({ plant, onClick, onDelete, finished = false }) {
 // ── メインアプリ ──────────────────────────────────────────────
 export default function App() {
   const [plants, setPlants] = useState([]);
-  // schedules/settings はuseEffectでIDBから読み込む
+  const [schedules, setSchedules] = useState([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [photosLoaded, setPhotosLoaded] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [view, setView] = useState("dashboard");
   const [dashTab, setDashTab] = useState("active");
