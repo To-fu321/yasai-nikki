@@ -1107,19 +1107,22 @@ export default function App() {
     const timeout = setTimeout(() => {
       setDataLoaded(true);
       setPhotosLoaded(true);
-    }, 5000);
+    }, 1000);
 
     async function loadAll() {
       try {
-        const savedPlants    = await idbLoadData("plants");
-        const savedSchedules = await idbLoadData("schedules");
-        const savedSettings  = await idbLoadData("settings");
+        // Step1: テキストデータ読み込み
+        let savedPlants = null, savedSchedules = null, savedSettings = null;
+        try { savedPlants    = await idbLoadData("plants");    } catch {}
+        try { savedSchedules = await idbLoadData("schedules"); } catch {}
+        try { savedSettings  = await idbLoadData("settings");  } catch {}
 
-        let loadedPlants = savedPlants ?? [];
+        // Step2: plantsのID修正
+        let loadedPlants = Array.isArray(savedPlants) ? savedPlants : [];
         const usedIds = new Set();
         loadedPlants = loadedPlants.map(plant => ({
           ...plant,
-          logs: plant.logs.map(log => {
+          logs: (plant.logs || []).map(log => {
             if (!log.id || usedIds.has(log.id)) {
               const newId = Date.now() + Math.floor(Math.random() * 100000);
               usedIds.add(newId);
@@ -1130,17 +1133,25 @@ export default function App() {
           })
         }));
 
-        const withPhotos = await idbLoadAllPhotos(loadedPlants);
-        setPlants(withPhotos);
-        setPhotosLoaded(true);
-
+        // Step3: まずテキストデータだけで表示（写真なし）
+        setPlants(loadedPlants);
         if (savedSchedules) setSchedules(savedSchedules);
         if (savedSettings)  setSettings(s => ({ ...s, ...savedSettings }));
+        setDataLoaded(true); // ここでアプリを表示
+        clearTimeout(timeout);
+
+        // Step4: 写真を非同期で後から読み込む
+        try {
+          const withPhotos = await idbLoadAllPhotos(loadedPlants);
+          setPlants(withPhotos);
+        } catch {}
+        setPhotosLoaded(true);
+
       } catch (e) {
         console.error("IDB load error:", e);
-      } finally {
         clearTimeout(timeout);
         setDataLoaded(true);
+        setPhotosLoaded(true);
       }
     }
     loadAll();
