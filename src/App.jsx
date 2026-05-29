@@ -1,5 +1,91 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 
+// ── IndexedDB ヘルパー（全データの永続保存）──────────────────
+const IDB_NAME = "yasai-nikki-db";
+const IDB_VERSION = 2;
+const IDB_PHOTOS = "photos";
+const IDB_DATA = "appdata";
+
+function openIDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(IDB_PHOTOS)) {
+        db.createObjectStore(IDB_PHOTOS, { keyPath: "key" });
+      }
+      if (!db.objectStoreNames.contains(IDB_DATA)) {
+        db.createObjectStore(IDB_DATA, { keyPath: "key" });
+      }
+    };
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// テキストデータの保存・読み込み
+async function idbSaveData(key, value) {
+  try {
+    const db = await openIDB();
+    const tx = db.transaction(IDB_DATA, "readwrite");
+    tx.objectStore(IDB_DATA).put({ key, value });
+    return new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
+  } catch (e) { console.error("IDB save error:", e); }
+}
+
+async function idbLoadData(key) {
+  try {
+    const db = await openIDB();
+    const tx = db.transaction(IDB_DATA, "readonly");
+    const req = tx.objectStore(IDB_DATA).get(key);
+    return new Promise(res => {
+      req.onsuccess = () => res(req.result?.value ?? null);
+      req.onerror = () => res(null);
+    });
+  } catch { return null; }
+}
+
+// 写真データの保存・読み込み・削除
+async function idbSavePhotos(logId, photos) {
+  try {
+    const db = await openIDB();
+    const tx = db.transaction(IDB_PHOTOS, "readwrite");
+    tx.objectStore(IDB_PHOTOS).put({ key: String(logId), photos });
+    return new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
+  } catch (e) { console.error("IDB photo save error:", e); }
+}
+
+async function idbLoadPhotos(logId) {
+  try {
+    const db = await openIDB();
+    const tx = db.transaction(IDB_PHOTOS, "readonly");
+    const req = tx.objectStore(IDB_PHOTOS).get(String(logId));
+    return new Promise(res => {
+      req.onsuccess = () => res(req.result?.photos || []);
+      req.onerror = () => res([]);
+    });
+  } catch { return []; }
+}
+
+async function idbDeletePhotos(logId) {
+  try {
+    const db = await openIDB();
+    const tx = db.transaction(IDB_PHOTOS, "readwrite");
+    tx.objectStore(IDB_PHOTOS).delete(String(logId));
+  } catch {}
+}
+
+async function idbLoadAllPhotos(plants) {
+  const result = await Promise.all(plants.map(async plant => ({
+    ...plant,
+    logs: await Promise.all(plant.logs.map(async log => ({
+      ...log,
+      photos: await idbLoadPhotos(log.id),
+    }))),
+  })));
+  return result;
+}
+
 const WEATHER_OPTIONS = ["☀️ 晴れ", "⛅ 曇り", "🌧 雨", "🌩 嵐", "❄️ 雪"];
 
 const typeColor = {
@@ -871,19 +957,8 @@ function PlantCard({ plant, onClick, onDelete, finished = false }) {
 
 // ── メインアプリ ──────────────────────────────────────────────
 export default function App() {
-  const [plants, setPlants] = useState(() => {
-    try {
-      const saved = localStorage.getItem("yasai_plants");
-      // JSON.parse/stringify で完全な独立コピーを作成
-      return saved ? deepClone(JSON.parse(saved)) : [];
-    } catch { return []; }
-  });
-  const [schedules, setSchedules] = useState(() => {
-    try {
-      const saved = localStorage.getItem("yasai_schedules");
-      return saved ? JSON.parse(saved) : INITIAL_SCHEDULES;
-    } catch { return INITIAL_SCHEDULES; }
-  });
+  const [plants, setPlants] = useState([]);
+  // schedules/settings はuseEffectでIDBから読み込む
   const [selectedId, setSelectedId] = useState(null);
   const [view, setView] = useState("dashboard");
   const [dashTab, setDashTab] = useState("active");
@@ -898,25 +973,12 @@ export default function App() {
   const [showUpcoming, setShowUpcoming] = useState(false);
   const [editingPlantedDate, setEditingPlantedDate] = useState(false);
   const [plantedDateDraft, setPlantedDateDraft] = useState("");
-  const [settings, setSettings] = useState(() => {
-    try {
-      const saved = localStorage.getItem("yasai_settings");
-      return saved ? JSON.parse(saved) : {
-        notifyEnabled: false,
-        notifyOnDay: true,
-        notifyDayBefore: true,
-        notify3Before: false,
-        notifyTime: "08:00",
-      };
-    } catch {
-      return {
-        notifyEnabled: false,
-        notifyOnDay: true,
-        notifyDayBefore: true,
-        notify3Before: false,
-        notifyTime: "08:00",
-      };
-    }
+  const [settings, setSettings] = useState({
+    notifyEnabled: false,
+    notifyOnDay: true,
+    notifyDayBefore: true,
+    notify3Before: false,
+    notifyTime: "08:00",
   });
 
   const selectedPlant = plants.find(p => p.id === selectedId);
@@ -924,6 +986,9 @@ export default function App() {
   const finishedPlants = plants.filter(p => p.finished);
 
   function deletePlant(id) {
+    // 全ログの写真をIndexedDBから削除
+    const plant = plants.find(p => p.id === id);
+    if (plant) plant.logs.forEach(l => idbDeletePhotos(l.id));
     setPlants(prev => prev.filter(p => p.id !== id));
     // 関連する予定も削除
     setSchedules(prev => prev.filter(s => s.plantId !== id));
@@ -967,6 +1032,8 @@ export default function App() {
   }
 
   function deleteLog(logId) {
+    // 写真をIndexedDBから削除
+    idbDeletePhotos(logId);
     setPlants(prev => prev.map(p => p.id === selectedId ? { ...p, logs: p.logs.filter(l => l.id !== logId) } : p));
     setDeleteConfirm(null);
   }
@@ -1020,27 +1087,59 @@ export default function App() {
     return () => { document.body.style.background = ""; };
   }, []);
 
-  // データを localStorage に自動保存
+  // ── 起動時：IndexedDBから全データを読み込む ──
   useEffect(() => {
-    try {
-      localStorage.setItem("yasai_plants", JSON.stringify(plants));
-    } catch (e) {
-      // 容量超過の場合、写真データを除いて保存
-      try {
-        const slim = plants.map(p => ({ ...p, logs: p.logs.map(l => ({ ...l, photos: [] })) }));
-        localStorage.setItem("yasai_plants", JSON.stringify(slim));
-        console.warn("写真データが大きいため、写真を除いて保存しました。");
-      } catch {}
+    async function loadAll() {
+      // テキストデータを読み込む
+      const savedPlants    = await idbLoadData("plants");
+      const savedSchedules = await idbLoadData("schedules");
+      const savedSettings  = await idbLoadData("settings");
+
+      // plants: IDの重複修正 → 写真を合成
+      let loadedPlants = savedPlants ?? INITIAL_PLANTS;
+      const usedIds = new Set();
+      loadedPlants = loadedPlants.map(plant => ({
+        ...plant,
+        logs: plant.logs.map(log => {
+          if (!log.id || usedIds.has(log.id)) {
+            const newId = Date.now() + Math.floor(Math.random() * 100000);
+            usedIds.add(newId);
+            return { ...log, id: newId, photos: [] };
+          }
+          usedIds.add(log.id);
+          return { ...log, photos: [] };
+        })
+      }));
+
+      // 写真を合成
+      const withPhotos = await idbLoadAllPhotos(loadedPlants);
+      setPlants(withPhotos);
+      setPhotosLoaded(true);
+
+      if (savedSchedules) setSchedules(savedSchedules);
+      if (savedSettings)  setSettings(s => ({ ...s, ...savedSettings }));
+      setDataLoaded(true);
     }
-  }, [plants]);
+    loadAll();
+  }, []);
+
+  // ── データ変更時：IndexedDBに自動保存 ──
+  useEffect(() => {
+    if (!dataLoaded) return;
+    // 写真を除いたテキストデータのみ保存
+    const slim = plants.map(p => ({ ...p, logs: p.logs.map(l => ({ ...l, photos: [] })) }));
+    idbSaveData("plants", slim);
+  }, [plants, dataLoaded]);
 
   useEffect(() => {
-    try { localStorage.setItem("yasai_schedules", JSON.stringify(schedules)); } catch {}
-  }, [schedules]);
+    if (!dataLoaded) return;
+    idbSaveData("schedules", schedules);
+  }, [schedules, dataLoaded]);
 
   useEffect(() => {
-    try { localStorage.setItem("yasai_settings", JSON.stringify(settings)); } catch {}
-  }, [settings]);
+    if (!dataLoaded) return;
+    idbSaveData("settings", settings);
+  }, [settings, dataLoaded]);
 
   // 予定通知チェック（アプリ起動時 + 毎分）
   const checkNotifications = useCallback(() => {
@@ -1089,6 +1188,17 @@ export default function App() {
 
   const isTabView = view === "dashboard" || view === "calendar" || view === "detail" || view === "settings";
   const showBack = ["addPlant", "addLog", "editLog"].includes(view);
+
+  // データ読み込み中はローディング画面を表示
+  if (!dataLoaded) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f0f7f0", fontFamily: "'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif" }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🥬</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "#2e7d32", marginBottom: 8 }}>やさい日誌</div>
+        <div style={{ fontSize: 13, color: "#888" }}>データを読み込んでいます...</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ fontFamily: "'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif", minHeight: "100vh", width: "100%", maxWidth: 480, margin: "0 auto", paddingBottom: 90 }}>
