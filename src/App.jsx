@@ -1026,8 +1026,11 @@ export default function App() {
 
   function addLog() {
     if (!selectedPlant || !logDraft.date) return;
-    // JSON経由で完全な独立コピーとして保存
-    const log = { ...logDraft, photos: [...(logDraft.photos || [])], id: newLogId() };
+    const logId = newLogId();
+    const photos = [...(logDraft.photos || [])];
+    const log = { ...logDraft, photos, id: logId };
+    // 写真をIndexedDBに保存
+    idbSavePhotos(logId, photos);
     setPlants(prev => prev.map(p => p.id === selectedId
       ? { ...p, logs: [...p.logs, log].sort((a, b) => a.date.localeCompare(b.date)) }
       : p
@@ -1038,8 +1041,10 @@ export default function App() {
 
   function saveEditLog() {
     if (!editingLogId) return;
-    // JSON経由で完全な独立コピーとして保存
-    const updatedLog = deepClone({ ...logDraft, id: editingLogId });
+    const photos = [...(logDraft.photos || [])];
+    const updatedLog = { ...logDraft, photos, id: editingLogId };
+    // 写真をIndexedDBに保存（上書き）
+    idbSavePhotos(editingLogId, photos);
     setPlants(prev => prev.map(p =>
       p.id === selectedId
         ? { ...p, logs: p.logs.map(l => l.id === editingLogId ? updatedLog : l).sort((a, b) => a.date.localeCompare(b.date)) }
